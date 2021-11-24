@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -8,7 +8,7 @@ class InfoMessage:
     duration: float
     distance: float
     speed: float
-    calories: float
+    calories: float = field(default_factory=float)
 
     MESSAGE = (
         'Тип тренировки: {}; '
@@ -29,27 +29,21 @@ class InfoMessage:
         )
 
 
+@dataclass
 class Training:
     """Базовый класс тренировки."""
-    LEN_STEP: float = 0.65
-    M_IN_KM: float = 1000
-    MIN_IN_HOUR: float = 60
-    RUN_CALORIE_CONSTANT_1: float = 18
-    RUN_CALORIE_CONSTANT_2: float = 20
-    WLK_CALORIE_CONSTANT_1: float = 0.035
-    WLK_CALORIE_CONSTANT_2: float = 0.029
-    SWM_CALORIE_CONSTANT_1: float = 1.1
-    SWM_CALORIE_CONSTANT_2: float = 2
-
-    def __init__(
-        self,
-        action: int,
-        duration: float,
-        weight: float
-    ) -> None:
-        self.action = action
-        self.duration = duration
-        self.weight = weight
+    action: int
+    duration: float
+    weight: float
+    LEN_STEP: float = field(default=0.65, init=False)
+    M_IN_KM: float = field(default=1000, init=False)
+    MIN_IN_HOUR: float = field(default=60, init=False)
+    RUN_CALORIE_CONSTANT_1: float = field(default=18, init=False)
+    RUN_CALORIE_CONSTANT_2: float = field(default=20, init=False)
+    WLK_CALORIE_CONSTANT_1: float = field(default=0.035, init=False)
+    WLK_CALORIE_CONSTANT_2: float = field(default=0.029, init=False)
+    SWM_CALORIE_CONSTANT_1: float = field(default=1.1, init=False)
+    SWM_CALORIE_CONSTANT_2: float = field(default=2, init=False)
 
     def get_distance(self) -> float:
         """Получить дистанцию в км."""
@@ -86,17 +80,10 @@ class Running(Training):
         )
 
 
+@dataclass
 class SportsWalking(Training):
     """Тренировка: спортивная ходьба."""
-    def __init__(
-        self,
-        action: int,
-        duration: float,
-        weight: float,
-        height: float
-    ) -> None:
-        super().__init__(action, duration, weight)
-        self.height = height
+    height: float
 
     def get_spent_calories(self) -> float:
         """Получить количество затраченных калорий."""
@@ -108,21 +95,12 @@ class SportsWalking(Training):
         )
 
 
+@dataclass
 class Swimming(Training):
     """Тренировка: плавание."""
-    LEN_STEP: float = 1.38
-
-    def __init__(
-        self,
-        action: int,
-        duration: float,
-        weight: float,
-        length_pool: float,
-        count_pool: int
-    ) -> None:
-        super().__init__(action, duration, weight)
-        self.length_pool = length_pool
-        self.count_pool = count_pool
+    length_pool: float
+    count_pool: int
+    LEN_STEP: float = field(default=1.38, init=False)
 
     def get_mean_speed(self) -> float:
         """Получить среднюю скорость движения."""
@@ -145,12 +123,30 @@ TYPES_AND_TRAININGS = {
 }
 
 WORKOUT_EXCEPTION = '"{}" is unsupported type'
+LEN_DATA_EXCEPTION = 'Incorrect amount of data for {}: {}'
+
+
+def count_fields(training) -> int:
+    """Посчитать количество полей."""
+    count = 0
+    for i in training.__dataclass_fields__.items():
+        if i[1].init is True:
+            count += 1
+    return count
 
 
 def read_package(workout_type: str, data: list) -> Training:
     """Прочитать данные полученные от датчиков."""
     if workout_type in TYPES_AND_TRAININGS:
-        return TYPES_AND_TRAININGS[workout_type](*data)
+        if count_fields(TYPES_AND_TRAININGS[workout_type]) == len(data):
+            return TYPES_AND_TRAININGS[workout_type](*data)
+        else:
+            raise Exception(
+                LEN_DATA_EXCEPTION.format(
+                    TYPES_AND_TRAININGS[workout_type].__name__,
+                    len(data)
+                )
+            )
     else:
         raise Exception(WORKOUT_EXCEPTION.format(workout_type))
 
