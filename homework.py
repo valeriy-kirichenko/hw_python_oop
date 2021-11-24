@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, fields
+from typing import List
 
 
 @dataclass
@@ -8,7 +9,7 @@ class InfoMessage:
     duration: float
     distance: float
     speed: float
-    calories: float = field(default_factory=float)
+    calories: float
 
     MESSAGE = (
         'Тип тренировки: {}; '
@@ -35,15 +36,10 @@ class Training:
     action: int
     duration: float
     weight: float
-    LEN_STEP: float = field(default=0.65, init=False)
-    M_IN_KM: float = field(default=1000, init=False)
-    MIN_IN_HOUR: float = field(default=60, init=False)
-    RUN_CALORIE_CONSTANT_1: float = field(default=18, init=False)
-    RUN_CALORIE_CONSTANT_2: float = field(default=20, init=False)
-    WLK_CALORIE_CONSTANT_1: float = field(default=0.035, init=False)
-    WLK_CALORIE_CONSTANT_2: float = field(default=0.029, init=False)
-    SWM_CALORIE_CONSTANT_1: float = field(default=1.1, init=False)
-    SWM_CALORIE_CONSTANT_2: float = field(default=2, init=False)
+    LEN_STEP = 0.65
+    LEN_STEP = 0.65
+    M_IN_KM = 1000
+    MIN_IN_HOUR = 60
 
     def get_distance(self) -> float:
         """Получить дистанцию в км."""
@@ -55,7 +51,9 @@ class Training:
 
     def get_spent_calories(self) -> float:
         """Получить количество затраченных калорий."""
-        pass
+        raise NotImplementedError(
+            'Необходимо переопределить get_spent_calories в %s.'
+            % (self.__class__.__name__))
 
     def show_training_info(self) -> InfoMessage:
         """Вернуть информационное сообщение о выполненной тренировке."""
@@ -68,13 +66,17 @@ class Training:
         )
 
 
+@dataclass
 class Running(Training):
     """Тренировка: бег."""
+    SPEED_MULTIPLIER = 18
+    SPEED_SHIFT = 20
+
     def get_spent_calories(self) -> float:
         """Получить количество затраченных калорий."""
         return (
-            (self.RUN_CALORIE_CONSTANT_1 * self.get_mean_speed()
-             - self.RUN_CALORIE_CONSTANT_2)
+            (self.SPEED_MULTIPLIER * self.get_mean_speed()
+             - self.SPEED_SHIFT)
             * self.weight / self.M_IN_KM * self.duration
             * self.MIN_IN_HOUR
         )
@@ -84,13 +86,15 @@ class Running(Training):
 class SportsWalking(Training):
     """Тренировка: спортивная ходьба."""
     height: float
+    WEIGHT_MULTIPLIER_1 = 0.035
+    WEIGHT_MULTIPLIER_2 = 0.029
 
     def get_spent_calories(self) -> float:
         """Получить количество затраченных калорий."""
         return (
-            (self.WLK_CALORIE_CONSTANT_1 * self.weight
+            (self.WEIGHT_MULTIPLIER_1 * self.weight
              + (self.get_mean_speed()**2 // self.height)
-             * self.WLK_CALORIE_CONSTANT_2
+             * self.WEIGHT_MULTIPLIER_2
              * self.weight) * self.duration * self.MIN_IN_HOUR
         )
 
@@ -100,7 +104,9 @@ class Swimming(Training):
     """Тренировка: плавание."""
     length_pool: float
     count_pool: int
-    LEN_STEP: float = field(default=1.38, init=False)
+    LEN_STEP = 1.38
+    SPEED_SHIFT = 1.1
+    WEIGHT_MULTIPLIER = 2
 
     def get_mean_speed(self) -> float:
         """Получить среднюю скорость движения."""
@@ -111,44 +117,38 @@ class Swimming(Training):
     def get_spent_calories(self) -> float:
         """Получить количество затраченных калорий."""
         return (
-            (self.get_mean_speed() + self.SWM_CALORIE_CONSTANT_1)
-            * self.SWM_CALORIE_CONSTANT_2 * self.weight
+            (self.get_mean_speed() + self.SPEED_SHIFT)
+            * self.WEIGHT_MULTIPLIER * self.weight
         )
 
 
-TYPES_AND_TRAININGS = {
+TRAININGS = {
     'RUN': Running,
     'WLK': SportsWalking,
     'SWM': Swimming
 }
 
-WORKOUT_EXCEPTION = '"{}" is unsupported type'
-LEN_DATA_EXCEPTION = 'Incorrect amount of data for {}: {}'
+WORKOUT_MESSAGE = '"{type}" is unsupported type'
+LEN_DATA_MESSAGE = (
+    'Incorrect amount of data for {training}: {len_data}. '
+    'Expected: {len_fields}'
+)
 
 
-def count_fields(training) -> int:
-    """Посчитать количество полей."""
-    count = 0
-    for i in training.__dataclass_fields__.items():
-        if i[1].init is True:
-            count += 1
-    return count
-
-
-def read_package(workout_type: str, data: list) -> Training:
+def read_package(workout_type: str, data: List[int]) -> Training:
     """Прочитать данные полученные от датчиков."""
-    if workout_type in TYPES_AND_TRAININGS:
-        if count_fields(TYPES_AND_TRAININGS[workout_type]) == len(data):
-            return TYPES_AND_TRAININGS[workout_type](*data)
-        else:
-            raise Exception(
-                LEN_DATA_EXCEPTION.format(
-                    TYPES_AND_TRAININGS[workout_type].__name__,
-                    len(data)
-                )
+    if workout_type not in TRAININGS:
+        raise KeyError(WORKOUT_MESSAGE.format(type=workout_type))
+    training = TRAININGS[workout_type]
+    if len(fields(training)) != len(data):
+        raise TypeError(
+            LEN_DATA_MESSAGE.format(
+                training=training.__name__,
+                len_data=len(data),
+                len_fields=len(fields(training))
             )
-    else:
-        raise Exception(WORKOUT_EXCEPTION.format(workout_type))
+        )
+    return training(*data)
 
 
 def main(training: Training) -> None:
